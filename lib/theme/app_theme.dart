@@ -12,12 +12,12 @@ class AppTheme {
   static const Color errorColor = Color(0xFFD50000);      // Red
   static const Color warningColor = Color(0xFFFF9800);    // Orange
   static const Color successColor = Color(0xFF42B549);    // Green
-  
+
   // Status colors
   static const Color activeColor = Color(0xFF42B549);     // Green
   static const Color inactiveColor = Color(0xFFE0E0E0);   // Light Gray
   static const Color manualModeColor = Color(0xFFFFC107); // Amber
-  
+
   // Create theme data
   static ThemeData lightTheme = ThemeData(
     primaryColor: primaryColor,
@@ -32,7 +32,7 @@ class AppTheme {
       foregroundColor: Colors.white,
       elevation: 0,
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData( // <--- Ubah CardTheme menjadi CardThemeData
       color: cardColor,
       elevation: 2,
       shape: RoundedRectangleBorder(
