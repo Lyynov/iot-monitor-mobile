@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/iot_provider.dart';
@@ -6,6 +5,7 @@ import '../models/node_model.dart';
 import '../widgets/summary_card.dart';
 import '../widgets/node_card.dart';
 import '../theme/app_theme.dart';
+import '../services/api_service.dart';
 import 'node_detail_screen.dart';
 import 'package:intl/intl.dart';
 
@@ -49,13 +49,83 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     return DateFormat('MMM dd, HH:mm:ss').format(time);
   }
 
+  void _showDemoModeDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.science, color: AppTheme.primaryColor),
+              SizedBox(width: 8),
+              Text('Demo Mode'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Current mode: ${ApiService.isDemoMode ? "Demo Data" : "Live Server"}'),
+              SizedBox(height: 16),
+              Text(
+                'Demo mode uses simulated data to showcase the app design and functionality without requiring a live server connection.',
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  ApiService.setDemoMode(!ApiService.isDemoMode);
+                });
+                Navigator.of(context).pop();
+                // Refresh data with new mode
+                context.read<IoTProvider>().loadDashboardData();
+              },
+              child: Text(ApiService.isDemoMode ? 'Switch to Live' : 'Switch to Demo'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'IoT Monitor',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Row(
+          children: [
+            Text(
+              'IoT Monitor',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            if (ApiService.isDemoMode) ...[
+              SizedBox(width: 8),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'DEMO',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
         actions: [
           Consumer<IoTProvider>(
@@ -78,6 +148,11 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             },
           ),
           IconButton(
+            icon: Icon(Icons.science),
+            onPressed: _showDemoModeDialog,
+            tooltip: 'Toggle Demo Mode',
+          ),
+          IconButton(
             icon: Icon(Icons.settings),
             onPressed: () {
               // Navigate to settings screen
@@ -95,7 +170,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       ),
       body: Consumer<IoTProvider>(
         builder: (context, provider, child) {
-          if (provider.error != null) {
+          if (provider.error != null && !ApiService.isDemoMode) {
             return _buildErrorView(provider);
           }
 
@@ -111,6 +186,13 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             ],
           );
         },
+      ),
+      // Add floating action button for quick demo toggle
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showDemoModeDialog,
+        backgroundColor: ApiService.isDemoMode ? Colors.orange : AppTheme.primaryColor,
+        icon: Icon(ApiService.isDemoMode ? Icons.science : Icons.wifi),
+        label: Text(ApiService.isDemoMode ? 'Demo Mode' : 'Live Mode'),
       ),
     );
   }
@@ -152,16 +234,33 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
               textAlign: TextAlign.center,
             ),
             SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () {
-                provider.clearError();
-                provider.loadDashboardData();
-              },
-              icon: Icon(Icons.refresh),
-              label: Text('Retry Connection'),
-              style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () {
+                    provider.clearError();
+                    provider.loadDashboardData();
+                  },
+                  icon: Icon(Icons.refresh),
+                  label: Text('Retry'),
+                  style: ElevatedButton.styleFrom(
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    ApiService.setDemoMode(true);
+                    provider.clearError();
+                    provider.loadDashboardData();
+                  },
+                  icon: Icon(Icons.science),
+                  label: Text('Use Demo'),
+                  style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -179,9 +278,19 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           ),
           SizedBox(height: 24),
           Text(
-            'Loading dashboard...',
+            ApiService.isDemoMode ? 'Loading demo data...' : 'Loading dashboard...',
             style: Theme.of(context).textTheme.bodyLarge,
           ),
+          if (ApiService.isDemoMode) ...[
+            SizedBox(height: 8),
+            Text(
+              'Simulating network delay',
+              style: TextStyle(
+                color: Colors.orange,
+                fontSize: 12,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -197,6 +306,34 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Demo mode banner
+            if (ApiService.isDemoMode)
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(12),
+                margin: EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.science, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Demo Mode Active - Using simulated data for demonstration',
+                        style: TextStyle(
+                          color: Colors.orange[800],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            
             // Status card
             _buildStatusCard(provider),
             
@@ -230,30 +367,57 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     return RefreshIndicator(
       onRefresh: provider.refresh,
       color: AppTheme.primaryColor,
-      child: ListView.builder(
-        padding: EdgeInsets.all(16),
-        itemCount: provider.nodes.length,
-        itemBuilder: (context, index) {
-          final node = provider.nodes[index];
-          return NodeCard(
-            node: node,
-            onTap: () {
-              provider.selectNode(node);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => NodeDetailScreen(),
+      child: Column(
+        children: [
+          // Demo mode banner for nodes tab
+          if (ApiService.isDemoMode)
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(12),
+              margin: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              ),
+              child: Text(
+                '${provider.nodes.length} Demo Nodes Available',
+                style: TextStyle(
+                  color: Colors.orange[800],
+                  fontWeight: FontWeight.w500,
                 ),
-              );
-            },
-            onToggle: (bool value) {
-              provider.controlNode(node.nodeId, node.manualMode, value);
-            },
-            onModeChange: (bool value) {
-              provider.controlNode(node.nodeId, value, node.relayState);
-            },
-          );
-        },
+                textAlign: TextAlign.center,
+              ),
+            ),
+          
+          Expanded(
+            child: ListView.builder(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              itemCount: provider.nodes.length,
+              itemBuilder: (context, index) {
+                final node = provider.nodes[index];
+                return NodeCard(
+                  node: node,
+                  onTap: () {
+                    provider.selectNode(node);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => NodeDetailScreen(),
+                      ),
+                    );
+                  },
+                  onToggle: (bool value) {
+                    provider.controlNode(node.nodeId, node.manualMode, value);
+                  },
+                  onModeChange: (bool value) {
+                    provider.controlNode(node.nodeId, value, node.relayState);
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -278,7 +442,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
-                        Icons.cloud_done,
+                        ApiService.isDemoMode ? Icons.science : Icons.cloud_done,
                         color: AppTheme.primaryColor,
                       ),
                     ),
@@ -294,9 +458,9 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                           ),
                         ),
                         Text(
-                          'Online',
+                          ApiService.isDemoMode ? 'Demo Mode' : 'Online',
                           style: TextStyle(
-                            color: AppTheme.primaryColor,
+                            color: ApiService.isDemoMode ? Colors.orange : AppTheme.primaryColor,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -307,7 +471,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withOpacity(0.1),
+                    color: (ApiService.isDemoMode ? Colors.orange : AppTheme.primaryColor).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
@@ -315,7 +479,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                         ? 'Updated ${_formatTime(provider.lastUpdate!)}'
                         : 'Updating...',
                     style: TextStyle(
-                      color: AppTheme.primaryColor,
+                      color: ApiService.isDemoMode ? Colors.orange : AppTheme.primaryColor,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
